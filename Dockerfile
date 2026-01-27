@@ -26,6 +26,7 @@ RUN git clone --depth 1 --branch "${CLAWDBOT_GIT_REF}" https://github.com/clawdb
 
 # Patch: relax version requirements for packages that may reference unpublished versions.
 # Scope this narrowly to avoid surprising dependency mutations.
+# Also fix workspace:* references that don't exist in the workspace.
 RUN set -eux; \
   for f in \
     ./extensions/memory-core/package.json \
@@ -33,6 +34,7 @@ RUN set -eux; \
   ; do \
     if [ -f "$f" ]; then \
       sed -i -E 's/"clawdbot"[[:space:]]*:[[:space:]]*">=[^"]+"/"clawdbot": "*"/g' "$f"; \
+      sed -i -E 's/"clawdbot"[[:space:]]*:[[:space:]]*"workspace:\*"/"clawdbot": "*"/g' "$f"; \
     fi; \
   done
 
