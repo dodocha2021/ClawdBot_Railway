@@ -498,9 +498,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.bind", "loopback"]));
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]));
 
-      // Set OpenRouter model if specified
-      if (payload.authChoice === "openrouter-api-key" && payload.openrouterModel?.trim()) {
-        const model = payload.openrouterModel.trim();
+      // Set OpenRouter model - use default if not specified
+      if (payload.authChoice === "openrouter-api-key") {
+        // Use provided model or default to anthropic/claude-sonnet-4
+        const model = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
         const modelSet = await runCmd(
           CLAWDBOT_NODE,
           clawArgs(["config", "set", "provider.openrouter.model", model]),
