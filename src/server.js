@@ -473,15 +473,33 @@ function runCmd(cmd, args, opts = {}) {
 
 app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
   try {
+    const payload = req.body || {};
+
     if (isConfigured()) {
+      // Already configured - but still allow updating OpenRouter model
+      let extra = "";
+      if (payload.authChoice === "openrouter-api-key") {
+        const model = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
+        const modelSet = await runCmd(
+          CLAWDBOT_NODE,
+          clawArgs(["config", "set", "provider.openrouter.model", model]),
+        );
+        extra += `[openrouter model] updated to: ${model} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}\n`;
+        extra += "\nRestarting gateway to apply model change...\n";
+
+        // Kill existing gateway so it restarts with new model
+        try {
+          await runCmd("pkill", ["-f", "clawdbot.*gateway"]);
+        } catch (e) { /* ignore */ }
+      }
+
       await ensureGatewayRunning();
-      return res.json({ ok: true, output: "Already configured.\nUse Reset setup if you want to rerun onboarding.\n" });
+      return res.json({ ok: true, output: "Already configured.\n" + extra + "Use Reset setup if you want to rerun full onboarding.\n" });
     }
 
     fs.mkdirSync(STATE_DIR, { recursive: true });
     fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
-    const payload = req.body || {};
     const onboardArgs = buildOnboardArgs(payload);
     const onboard = await runCmd(CLAWDBOT_NODE, clawArgs(onboardArgs));
 
