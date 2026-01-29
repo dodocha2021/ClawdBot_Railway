@@ -6,6 +6,11 @@
   var authGroupEl = document.getElementById('authGroup');
   var authChoiceEl = document.getElementById('authChoice');
   var logEl = document.getElementById('log');
+  var openrouterModelSection = document.getElementById('openrouterModelSection');
+  var openrouterModelEl = document.getElementById('openrouterModel');
+  var openrouterModelStatusEl = document.getElementById('openrouterModelStatus');
+  var fetchModelsBtn = document.getElementById('fetchModelsBtn');
+  var authSecretEl = document.getElementById('authSecret');
 
   function setStatus(s) {
     statusEl.textContent = s;
@@ -35,9 +40,124 @@
         opt2.textContent = o.label + (o.hint ? ' - ' + o.hint : '');
         authChoiceEl.appendChild(opt2);
       }
+      // Show/hide OpenRouter model selection
+      if (authGroupEl.value === 'openrouter') {
+        openrouterModelSection.style.display = 'block';
+      } else {
+        openrouterModelSection.style.display = 'none';
+      }
     };
 
     authGroupEl.onchange();
+  }
+
+  // Fetch OpenRouter models
+  function fetchOpenRouterModels() {
+    var apiKey = authSecretEl.value.trim();
+    if (!apiKey) {
+      openrouterModelStatusEl.textContent = 'Please enter your OpenRouter API key first.';
+      openrouterModelStatusEl.style.color = '#dc2626';
+      return;
+    }
+
+    openrouterModelStatusEl.textContent = 'Fetching models...';
+    openrouterModelStatusEl.style.color = '#555';
+    fetchModelsBtn.disabled = true;
+
+    fetch('/setup/api/openrouter/models', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiKey: apiKey })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        fetchModelsBtn.disabled = false;
+        if (!data.ok) {
+          openrouterModelStatusEl.textContent = 'Error: ' + (data.error || 'Failed to fetch models');
+          openrouterModelStatusEl.style.color = '#dc2626';
+          return;
+        }
+
+        var models = data.models || [];
+        openrouterModelEl.innerHTML = '';
+
+        // Add default option
+        var defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '-- Select a model (' + models.length + ' available) --';
+        openrouterModelEl.appendChild(defaultOpt);
+
+        // Add popular models at the top
+        var popularIds = [
+          'anthropic/claude-sonnet-4',
+          'anthropic/claude-3.5-sonnet',
+          'anthropic/claude-3-opus',
+          'openai/gpt-4o',
+          'openai/o1',
+          'google/gemini-2.0-flash-exp',
+          'google/gemini-pro-1.5',
+          'meta-llama/llama-3.3-70b-instruct',
+          'deepseek/deepseek-chat'
+        ];
+
+        var popularModels = [];
+        var otherModels = [];
+        for (var i = 0; i < models.length; i++) {
+          var m = models[i];
+          if (popularIds.indexOf(m.id) !== -1) {
+            popularModels.push(m);
+          } else {
+            otherModels.push(m);
+          }
+        }
+
+        // Sort popular models by the order in popularIds
+        popularModels.sort(function (a, b) {
+          return popularIds.indexOf(a.id) - popularIds.indexOf(b.id);
+        });
+
+        // Add optgroup for popular models
+        if (popularModels.length > 0) {
+          var popularGroup = document.createElement('optgroup');
+          popularGroup.label = '⭐ Popular Models';
+          for (var j = 0; j < popularModels.length; j++) {
+            var pm = popularModels[j];
+            var opt = document.createElement('option');
+            opt.value = pm.id;
+            opt.textContent = pm.name + ' (' + pm.id + ')';
+            popularGroup.appendChild(opt);
+          }
+          openrouterModelEl.appendChild(popularGroup);
+        }
+
+        // Add optgroup for all other models
+        if (otherModels.length > 0) {
+          var otherGroup = document.createElement('optgroup');
+          otherGroup.label = 'All Models';
+          for (var k = 0; k < otherModels.length; k++) {
+            var om = otherModels[k];
+            var opt2 = document.createElement('option');
+            opt2.value = om.id;
+            opt2.textContent = om.name + ' (' + om.id + ')';
+            otherGroup.appendChild(opt2);
+          }
+          openrouterModelEl.appendChild(otherGroup);
+        }
+
+        openrouterModelStatusEl.textContent = 'Loaded ' + models.length + ' models. Select one above.';
+        openrouterModelStatusEl.style.color = '#16a34a';
+      })
+      .catch(function (err) {
+        fetchModelsBtn.disabled = false;
+        openrouterModelStatusEl.textContent = 'Error: ' + String(err);
+        openrouterModelStatusEl.style.color = '#dc2626';
+      });
+  }
+
+  // Bind fetch models button
+  if (fetchModelsBtn) {
+    fetchModelsBtn.onclick = fetchOpenRouterModels;
   }
 
   function httpJson(url, opts) {
@@ -74,6 +194,7 @@
       flow: document.getElementById('flow').value,
       authChoice: authChoiceEl.value,
       authSecret: document.getElementById('authSecret').value,
+      openrouterModel: openrouterModelEl ? openrouterModelEl.value : '',
       telegramToken: document.getElementById('telegramToken').value,
       discordToken: document.getElementById('discordToken').value,
       slackBotToken: document.getElementById('slackBotToken').value,

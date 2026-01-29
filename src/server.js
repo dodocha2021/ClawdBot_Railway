@@ -244,6 +244,20 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
     <label>Key / Token (if required)</label>
     <input id="authSecret" type="password" placeholder="Paste API key / token if applicable" />
 
+    <div id="openrouterModelSection" style="display:none; margin-top: 1rem; padding: 1rem; background: #f9f9f9; border-radius: 8px;">
+      <label style="margin-top: 0;">OpenRouter Model</label>
+      <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+        <select id="openrouterModel" style="flex: 1;">
+          <option value="">-- Enter API key and click "Fetch Models" --</option>
+        </select>
+        <button type="button" id="fetchModelsBtn" style="white-space: nowrap; background: #2563eb;">Fetch Models</button>
+      </div>
+      <div id="openrouterModelStatus" class="muted" style="margin-top: 0.5rem; font-size: 0.9em;"></div>
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">
+        Enter your OpenRouter API key above, then click "Fetch Models" to load available models.
+      </div>
+    </div>
+
     <label>Wizard flow</label>
     <select id="flow">
       <option value="quickstart">quickstart</option>
@@ -484,6 +498,16 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.bind", "loopback"]));
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]));
 
+      // Set OpenRouter model if specified
+      if (payload.authChoice === "openrouter-api-key" && payload.openrouterModel?.trim()) {
+        const model = payload.openrouterModel.trim();
+        const modelSet = await runCmd(
+          CLAWDBOT_NODE,
+          clawArgs(["config", "set", "provider.openrouter.model", model]),
+        );
+        extra += `\n[openrouter model] set to: ${model} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}`;
+      }
+
       const channelsHelp = await runCmd(CLAWDBOT_NODE, clawArgs(["channels", "add", "--help"]));
       const helpText = channelsHelp.output || "";
 
@@ -599,6 +623,45 @@ app.post("/setup/api/pairing/approve", requireSetupAuth, async (req, res) => {
   }
   const r = await runCmd(CLAWDBOT_NODE, clawArgs(["pairing", "approve", String(channel), String(code)]));
   return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: r.output });
+});
+
+// Fetch OpenRouter models list using the provided API key
+app.post("/setup/api/openrouter/models", requireSetupAuth, async (req, res) => {
+  const apiKey = (req.body?.apiKey || "").trim();
+  if (!apiKey) {
+    return res.status(400).json({ ok: false, error: "API key is required" });
+  }
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/models", {
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({ ok: false, error: `OpenRouter API error: ${text}` });
+    }
+
+    const data = await response.json();
+    // Filter and sort models - return id and name
+    const models = (data.data || [])
+      .filter((m) => m.id)
+      .map((m) => ({
+        id: m.id,
+        name: m.name || m.id,
+        context_length: m.context_length,
+        pricing: m.pricing,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.json({ ok: true, models });
+  } catch (err) {
+    console.error("[openrouter/models] error:", err);
+    return res.status(500).json({ ok: false, error: `Failed to fetch models: ${String(err)}` });
+  }
 });
 
 app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
