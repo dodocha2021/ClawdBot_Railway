@@ -233,8 +233,8 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
   </div>
 
   <div class="card">
-    <h2>1) Model/auth provider</h2>
-    <p class="muted">Matches the groups shown in the terminal onboarding.</p>
+    <h2>1) Primary Auth Provider</h2>
+    <p class="muted">Select your primary authentication method for the initial setup.</p>
     <label>Provider group</label>
     <select id="authGroup"></select>
 
@@ -243,71 +243,6 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
 
     <label>Key / Token (if required)</label>
     <input id="authSecret" type="password" placeholder="Paste API key / token if applicable" />
-
-    <div id="openrouterModelSection" style="display:none; margin-top: 1rem; padding: 1rem; background: #f9f9f9; border-radius: 8px;">
-      <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem;">
-        <button type="button" id="fetchModelsBtn" style="white-space: nowrap; background: #2563eb;">Fetch Models</button>
-        <span id="openrouterModelStatus" class="muted" style="font-size: 0.9em;"></span>
-      </div>
-
-      <label style="margin-top: 0;">Primary Model</label>
-      <select id="openrouterModel">
-        <option value="">-- Click "Fetch Models" first --</option>
-      </select>
-      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Main model for text generation</div>
-
-      <label>Fallback Models (optional)</label>
-      <select id="openrouterFallbacks" multiple style="height: 100px;">
-        <option value="">-- Click "Fetch Models" first --</option>
-      </select>
-      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Hold Ctrl/Cmd to select multiple backup models</div>
-
-      <label>Image Model (optional)</label>
-      <select id="openrouterImageModel">
-        <option value="">-- None (use primary) --</option>
-      </select>
-      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Model for image/vision tasks (leave empty to use primary)</div>
-
-      <label>Image Model Fallbacks (optional)</label>
-      <select id="openrouterImageFallbacks" multiple style="height: 80px;">
-        <option value="">-- Click "Fetch Models" first --</option>
-      </select>
-
-      <label>Thinking Level</label>
-      <select id="thinkingDefault">
-        <option value="">-- Default --</option>
-        <option value="off">Off - No reasoning</option>
-        <option value="minimal">Minimal</option>
-        <option value="low">Low</option>
-        <option value="medium">Medium</option>
-        <option value="high">High</option>
-        <option value="xhigh">Extra High - Maximum reasoning</option>
-      </select>
-      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Controls AI reasoning depth (higher = more thorough but slower)</div>
-
-      <label>User Timezone (optional)</label>
-      <select id="userTimezone">
-        <option value="">-- Auto-detect --</option>
-        <option value="UTC">UTC</option>
-        <option value="America/New_York">America/New_York (EST/EDT)</option>
-        <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
-        <option value="America/Chicago">America/Chicago (CST/CDT)</option>
-        <option value="Europe/London">Europe/London (GMT/BST)</option>
-        <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
-        <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
-        <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-        <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
-        <option value="Asia/Hong_Kong">Asia/Hong_Kong (HKT)</option>
-        <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-        <option value="Asia/Seoul">Asia/Seoul (KST)</option>
-        <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
-      </select>
-      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">IANA timezone for timestamps</div>
-
-      <label>Workspace Path (optional)</label>
-      <input id="workspacePath" type="text" placeholder="/data/workspace" />
-      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Default working directory for the agent</div>
-    </div>
 
     <label>Wizard flow</label>
     <select id="flow">
@@ -318,7 +253,106 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
   </div>
 
   <div class="card">
-    <h2>2) Optional: Channels</h2>
+    <h2>2) API Providers</h2>
+    <p class="muted">Configure API keys for different model providers. You can use models from any configured provider.</p>
+
+    <div id="providersContainer">
+      <div class="provider-item" style="padding: 1rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 1rem;">
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+          <select class="provider-type" style="width: 150px;">
+            <option value="">-- Select --</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="openai">OpenAI</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="google">Google</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input class="provider-apikey" type="password" placeholder="API Key" style="flex: 1;" />
+          <button type="button" class="remove-provider-btn" style="background: #dc2626; padding: 0.5rem;">Remove</button>
+        </div>
+        <div class="provider-custom-url" style="display: none; margin-top: 0.5rem;">
+          <input class="provider-baseurl" type="text" placeholder="Base URL (e.g., https://api.example.com/v1)" style="width: 100%;" />
+        </div>
+      </div>
+    </div>
+    <button type="button" id="addProviderBtn" style="background: #16a34a; margin-top: 0.5rem;">+ Add Provider</button>
+
+    <div class="muted" style="margin-top: 1rem; font-size: 0.85em;">
+      <strong>Provider URLs:</strong><br/>
+      • Anthropic: https://api.anthropic.com<br/>
+      • OpenAI: https://api.openai.com/v1<br/>
+      • OpenRouter: https://openrouter.ai/api/v1<br/>
+      • Google: https://generativelanguage.googleapis.com
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3) Agent Defaults</h2>
+    <p class="muted">Configure default model and behavior settings for the agent.</p>
+
+    <div style="padding: 1rem; background: #f0f9ff; border-radius: 8px; margin-bottom: 1rem;">
+      <strong>Model Configuration</strong>
+      <p class="muted" style="margin: 0.25rem 0; font-size: 0.85em;">
+        Use format: provider/model-name (e.g., anthropic/claude-sonnet-4, openai/gpt-4o, openrouter/meta-llama/llama-3.3-70b-instruct)
+      </p>
+
+      <label>Primary Model</label>
+      <input id="primaryModel" type="text" placeholder="e.g., anthropic/claude-sonnet-4" />
+
+      <label>Fallback Models (comma-separated)</label>
+      <input id="fallbackModels" type="text" placeholder="e.g., openai/gpt-4o, openrouter/deepseek/deepseek-chat" />
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Backup models if primary is unavailable</div>
+    </div>
+
+    <div style="padding: 1rem; background: #fef3c7; border-radius: 8px; margin-bottom: 1rem;">
+      <strong>Image/Vision Model (optional)</strong>
+
+      <label>Image Model</label>
+      <input id="imageModel" type="text" placeholder="e.g., openai/gpt-4o, anthropic/claude-sonnet-4" />
+
+      <label>Image Model Fallbacks (comma-separated)</label>
+      <input id="imageFallbackModels" type="text" placeholder="e.g., google/gemini-pro-vision" />
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Leave empty to use primary model for vision tasks</div>
+    </div>
+
+    <label>Thinking Level</label>
+    <select id="thinkingDefault">
+      <option value="">-- Default --</option>
+      <option value="off">Off - No reasoning</option>
+      <option value="minimal">Minimal</option>
+      <option value="low">Low</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="xhigh">Extra High - Maximum reasoning</option>
+    </select>
+    <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Controls AI reasoning depth (higher = more thorough but slower)</div>
+
+    <label>User Timezone (optional)</label>
+    <select id="userTimezone">
+      <option value="">-- Auto-detect --</option>
+      <option value="UTC">UTC</option>
+      <option value="America/New_York">America/New_York (EST/EDT)</option>
+      <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+      <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+      <option value="Europe/London">Europe/London (GMT/BST)</option>
+      <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+      <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+      <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+      <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+      <option value="Asia/Hong_Kong">Asia/Hong_Kong (HKT)</option>
+      <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+      <option value="Asia/Seoul">Asia/Seoul (KST)</option>
+      <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+    </select>
+    <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">IANA timezone for timestamps</div>
+
+    <label>Workspace Path (optional)</label>
+    <input id="workspacePath" type="text" placeholder="/data/workspace" />
+    <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Default working directory for the agent</div>
+  </div>
+
+  <div class="card">
+    <h2>4) Optional: Channels</h2>
     <p class="muted">You can also add channels later inside Clawdbot, but this helps you get messaging working immediately.</p>
 
     <label>Telegram bot token (optional)</label>
@@ -342,7 +376,7 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
   </div>
 
   <div class="card">
-    <h2>3) Run onboarding</h2>
+    <h2>5) Run onboarding</h2>
     <button id="run">Run setup</button>
     <button id="pairingApprove" style="background:#1f2937; margin-left:0.5rem">Approve pairing</button>
     <button id="reset" style="background:#444; margin-left:0.5rem">Reset setup</button>
@@ -522,18 +556,113 @@ function runCmd(cmd, args, opts = {}) {
   });
 }
 
+// Provider default URLs and API types for models.providers configuration
+const providerDefaults = {
+  'anthropic': {
+    baseUrl: 'https://api.anthropic.com',
+    api: 'anthropic-messages'
+  },
+  'openai': {
+    baseUrl: 'https://api.openai.com/v1',
+    api: 'openai-completions'
+  },
+  'openrouter': {
+    baseUrl: 'https://openrouter.ai/api/v1',
+    api: 'openai-completions'
+  },
+  'google': {
+    baseUrl: 'https://generativelanguage.googleapis.com',
+    api: 'google-generative-ai'
+  },
+  'moonshot': {
+    baseUrl: 'https://api.moonshot.ai/v1',
+    api: 'openai-completions'
+  }
+};
+
+// Map auth choices to provider names for models.providers
+const authChoiceToProvider = {
+  'openrouter-api-key': 'openrouter',
+  'openai-api-key': 'openai',
+  'apiKey': 'anthropic',
+  'gemini-api-key': 'google',
+  'moonshot-api-key': 'moonshot',
+  'kimi-code-api-key': 'moonshot'
+};
+
+// Helper function to set providers configuration
+// Based on openclaw schema: models.providers
+async function setProvidersConfig(payload) {
+  let extra = "";
+
+  // Build models.providers config object
+  // Schema: Record<string, { baseUrl: string, apiKey?: string, api?: string, models: [] }>
+  const providersConfig = {};
+
+  // First, add the primary auth provider if it's API-based
+  const authChoice = payload.authChoice;
+  const authSecret = (payload.authSecret || "").trim();
+  if (authChoice && authSecret && authChoiceToProvider[authChoice]) {
+    const providerName = authChoiceToProvider[authChoice];
+    const defaults = providerDefaults[providerName];
+    if (defaults) {
+      providersConfig[providerName] = {
+        baseUrl: defaults.baseUrl,
+        apiKey: authSecret,
+        api: defaults.api,
+        models: []
+      };
+      extra += `[auth-provider] auto-added ${providerName} from primary auth\n`;
+    }
+  }
+
+  // Then add any additional providers from the providers section
+  const providers = payload.providers;
+  if (providers && typeof providers === 'object') {
+    for (const [name, config] of Object.entries(providers)) {
+      if (!config.apiKey) continue;
+
+      // Don't overwrite if already set from auth
+      if (providersConfig[name]) {
+        extra += `[providers] ${name} already configured from auth, skipping duplicate\n`;
+        continue;
+      }
+
+      providersConfig[name] = {
+        baseUrl: config.baseUrl || '',
+        apiKey: config.apiKey,
+        models: []
+      };
+
+      if (config.api) {
+        providersConfig[name].api = config.api;
+      }
+    }
+  }
+
+  if (Object.keys(providersConfig).length > 0) {
+    const provSet = await runCmd(
+      CLAWDBOT_NODE,
+      clawArgs(["config", "set", "--json", "models.providers", JSON.stringify(providersConfig)]),
+    );
+    extra += `[providers] configured: ${Object.keys(providersConfig).join(', ')} (exit=${provSet.code})\n${provSet.output || "(no output)"}\n`;
+  }
+
+  return extra;
+}
+
 // Helper function to set agent defaults configuration
 // Based on openclaw schema: agents.defaults.model, imageModel, thinkingDefault, userTimezone, workspace
 async function setAgentDefaults(payload) {
   let extra = "";
 
   // Set model configuration (AgentModelListConfig: { primary?: string, fallbacks?: string[] })
-  if (payload.authChoice === "openrouter-api-key") {
-    const primaryModel = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
-    const fallbacks = Array.isArray(payload.openrouterFallbacks)
-      ? payload.openrouterFallbacks.filter(f => f && f.trim())
-      : [];
+  const primaryModel = payload.primaryModel?.trim();
+  const fallbacks = Array.isArray(payload.fallbackModels)
+    ? payload.fallbackModels.filter(f => f && f.trim())
+    : [];
 
+  if (primaryModel) {
     const modelConfig = { primary: primaryModel };
     if (fallbacks.length > 0) {
       modelConfig.fallbacks = fallbacks;
@@ -544,24 +673,24 @@ async function setAgentDefaults(payload) {
       clawArgs(["config", "set", "--json", "agents.defaults.model", JSON.stringify(modelConfig)]),
     );
     extra += `[model] primary: ${primaryModel}${fallbacks.length > 0 ? `, fallbacks: ${fallbacks.join(', ')}` : ''} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}\n`;
+  }
 
-    // Set imageModel configuration if specified
-    const imageModel = payload.openrouterImageModel?.trim();
-    const imageFallbacks = Array.isArray(payload.openrouterImageFallbacks)
-      ? payload.openrouterImageFallbacks.filter(f => f && f.trim())
-      : [];
+  // Set imageModel configuration if specified
+  const imageModel = payload.imageModel?.trim();
+  const imageFallbacks = Array.isArray(payload.imageFallbackModels)
+    ? payload.imageFallbackModels.filter(f => f && f.trim())
+    : [];
 
-    if (imageModel || imageFallbacks.length > 0) {
-      const imageModelConfig = {};
-      if (imageModel) imageModelConfig.primary = imageModel;
-      if (imageFallbacks.length > 0) imageModelConfig.fallbacks = imageFallbacks;
+  if (imageModel || imageFallbacks.length > 0) {
+    const imageModelConfig = {};
+    if (imageModel) imageModelConfig.primary = imageModel;
+    if (imageFallbacks.length > 0) imageModelConfig.fallbacks = imageFallbacks;
 
-      const imageSet = await runCmd(
-        CLAWDBOT_NODE,
-        clawArgs(["config", "set", "--json", "agents.defaults.imageModel", JSON.stringify(imageModelConfig)]),
-      );
-      extra += `[imageModel] ${imageModel ? `primary: ${imageModel}` : ''}${imageFallbacks.length > 0 ? ` fallbacks: ${imageFallbacks.join(', ')}` : ''} (exit=${imageSet.code})\n${imageSet.output || "(no output)"}\n`;
-    }
+    const imageSet = await runCmd(
+      CLAWDBOT_NODE,
+      clawArgs(["config", "set", "--json", "agents.defaults.imageModel", JSON.stringify(imageModelConfig)]),
+    );
+    extra += `[imageModel] ${imageModel ? `primary: ${imageModel}` : ''}${imageFallbacks.length > 0 ? ` fallbacks: ${imageFallbacks.join(', ')}` : ''} (exit=${imageSet.code})\n${imageSet.output || "(no output)"}\n`;
   }
 
   // Set thinkingDefault (valid values: "off", "minimal", "low", "medium", "high", "xhigh")
@@ -602,11 +731,22 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
     const payload = req.body || {};
 
     if (isConfigured()) {
-      // Already configured - but still allow updating agent defaults
+      // Already configured - but still allow updating providers and agent defaults
       let extra = "";
 
-      if (payload.authChoice === "openrouter-api-key" || payload.thinkingDefault || payload.userTimezone || payload.workspacePath) {
-        extra = await setAgentDefaults(payload);
+      // Check if any configuration was provided
+      const hasProviders = payload.providers && Object.keys(payload.providers).length > 0;
+      const hasAuthProvider = payload.authChoice && payload.authSecret && authChoiceToProvider[payload.authChoice];
+      const hasModel = payload.primaryModel || payload.imageModel;
+      const hasDefaults = payload.thinkingDefault || payload.userTimezone || payload.workspacePath;
+
+      if (hasProviders || hasAuthProvider || hasModel || hasDefaults) {
+        // Set providers config (includes auto-adding auth provider)
+        extra += await setProvidersConfig(payload);
+
+        // Set agent defaults
+        extra += await setAgentDefaults(payload);
+
         extra += "\nRestarting gateway to apply changes...\n";
 
         // Kill existing gateway so it restarts with new settings
@@ -637,6 +777,12 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.auth.token", CLAWDBOT_GATEWAY_TOKEN]));
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.bind", "loopback"]));
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]));
+
+      // Set providers config (models.providers)
+      const providersExtra = await setProvidersConfig(payload);
+      if (providersExtra) {
+        extra += "\n" + providersExtra;
+      }
 
       // Set agent defaults (model, imageModel, thinkingDefault, userTimezone, workspace)
       const agentDefaultsExtra = await setAgentDefaults(payload);

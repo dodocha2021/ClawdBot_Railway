@@ -6,17 +6,24 @@
   var authGroupEl = document.getElementById('authGroup');
   var authChoiceEl = document.getElementById('authChoice');
   var logEl = document.getElementById('log');
-  var openrouterModelSection = document.getElementById('openrouterModelSection');
-  var openrouterModelEl = document.getElementById('openrouterModel');
-  var openrouterFallbacksEl = document.getElementById('openrouterFallbacks');
-  var openrouterImageModelEl = document.getElementById('openrouterImageModel');
-  var openrouterImageFallbacksEl = document.getElementById('openrouterImageFallbacks');
-  var openrouterModelStatusEl = document.getElementById('openrouterModelStatus');
-  var fetchModelsBtn = document.getElementById('fetchModelsBtn');
-  var authSecretEl = document.getElementById('authSecret');
-  var thinkingDefaultEl = document.getElementById('thinkingDefault');
-  var userTimezoneEl = document.getElementById('userTimezone');
-  var workspacePathEl = document.getElementById('workspacePath');
+  var providersContainer = document.getElementById('providersContainer');
+  var addProviderBtn = document.getElementById('addProviderBtn');
+
+  // Provider default URLs
+  var providerUrls = {
+    'anthropic': 'https://api.anthropic.com',
+    'openai': 'https://api.openai.com/v1',
+    'openrouter': 'https://openrouter.ai/api/v1',
+    'google': 'https://generativelanguage.googleapis.com'
+  };
+
+  // Provider API types
+  var providerApiTypes = {
+    'anthropic': 'anthropic-messages',
+    'openai': 'openai-completions',
+    'openrouter': 'openai-completions',
+    'google': 'google-generative-ai'
+  };
 
   function setStatus(s) {
     statusEl.textContent = s;
@@ -46,162 +53,122 @@
         opt2.textContent = o.label + (o.hint ? ' - ' + o.hint : '');
         authChoiceEl.appendChild(opt2);
       }
-      // Show/hide OpenRouter model selection
-      if (authGroupEl.value === 'openrouter') {
-        openrouterModelSection.style.display = 'block';
-      } else {
-        openrouterModelSection.style.display = 'none';
-      }
     };
 
     authGroupEl.onchange();
   }
 
-  // Populate a select element with model options
-  function populateModelSelect(selectEl, models, popularIds, includeEmpty, emptyLabel) {
-    selectEl.innerHTML = '';
+  // Create a new provider item HTML
+  function createProviderItem() {
+    var div = document.createElement('div');
+    div.className = 'provider-item';
+    div.style.cssText = 'padding: 1rem; background: #f9f9f9; border-radius: 8px; margin-bottom: 1rem;';
+    div.innerHTML = [
+      '<div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">',
+      '  <select class="provider-type" style="width: 150px;">',
+      '    <option value="">-- Select --</option>',
+      '    <option value="anthropic">Anthropic</option>',
+      '    <option value="openai">OpenAI</option>',
+      '    <option value="openrouter">OpenRouter</option>',
+      '    <option value="google">Google</option>',
+      '    <option value="custom">Custom</option>',
+      '  </select>',
+      '  <input class="provider-apikey" type="password" placeholder="API Key" style="flex: 1;" />',
+      '  <button type="button" class="remove-provider-btn" style="background: #dc2626; padding: 0.5rem;">Remove</button>',
+      '</div>',
+      '<div class="provider-custom-url" style="display: none; margin-top: 0.5rem;">',
+      '  <input class="provider-baseurl" type="text" placeholder="Base URL (e.g., https://api.example.com/v1)" style="width: 100%;" />',
+      '</div>'
+    ].join('\n');
+    return div;
+  }
 
-    if (includeEmpty) {
-      var emptyOpt = document.createElement('option');
-      emptyOpt.value = '';
-      emptyOpt.textContent = emptyLabel || '-- None --';
-      selectEl.appendChild(emptyOpt);
-    }
+  // Setup provider item event handlers
+  function setupProviderItem(item) {
+    var typeSelect = item.querySelector('.provider-type');
+    var customUrlDiv = item.querySelector('.provider-custom-url');
+    var removeBtn = item.querySelector('.remove-provider-btn');
 
-    var popularModels = [];
-    var otherModels = [];
-    for (var i = 0; i < models.length; i++) {
-      var m = models[i];
-      if (popularIds.indexOf(m.id) !== -1) {
-        popularModels.push(m);
+    typeSelect.onchange = function () {
+      if (typeSelect.value === 'custom') {
+        customUrlDiv.style.display = 'block';
       } else {
-        otherModels.push(m);
+        customUrlDiv.style.display = 'none';
       }
-    }
+    };
 
-    // Sort popular models by the order in popularIds
-    popularModels.sort(function (a, b) {
-      return popularIds.indexOf(a.id) - popularIds.indexOf(b.id);
-    });
+    removeBtn.onclick = function () {
+      item.remove();
+    };
+  }
 
-    // Add optgroup for popular models
-    if (popularModels.length > 0) {
-      var popularGroup = document.createElement('optgroup');
-      popularGroup.label = '⭐ Popular Models';
-      for (var j = 0; j < popularModels.length; j++) {
-        var pm = popularModels[j];
-        var opt = document.createElement('option');
-        opt.value = pm.id;
-        opt.textContent = pm.name + ' (' + pm.id + ')';
-        popularGroup.appendChild(opt);
-      }
-      selectEl.appendChild(popularGroup);
-    }
-
-    // Add optgroup for all other models
-    if (otherModels.length > 0) {
-      var otherGroup = document.createElement('optgroup');
-      otherGroup.label = 'All Models';
-      for (var k = 0; k < otherModels.length; k++) {
-        var om = otherModels[k];
-        var opt2 = document.createElement('option');
-        opt2.value = om.id;
-        opt2.textContent = om.name + ' (' + om.id + ')';
-        otherGroup.appendChild(opt2);
-      }
-      selectEl.appendChild(otherGroup);
+  // Setup all existing provider items
+  function setupAllProviderItems() {
+    var items = providersContainer.querySelectorAll('.provider-item');
+    for (var i = 0; i < items.length; i++) {
+      setupProviderItem(items[i]);
     }
   }
 
-  // Fetch OpenRouter models
-  function fetchOpenRouterModels() {
-    var apiKey = authSecretEl.value.trim();
-    if (!apiKey) {
-      openrouterModelStatusEl.textContent = 'Please enter your OpenRouter API key first.';
-      openrouterModelStatusEl.style.color = '#dc2626';
-      return;
-    }
-
-    openrouterModelStatusEl.textContent = 'Fetching models...';
-    openrouterModelStatusEl.style.color = '#555';
-    fetchModelsBtn.disabled = true;
-
-    fetch('/setup/api/openrouter/models', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ apiKey: apiKey })
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        fetchModelsBtn.disabled = false;
-        if (!data.ok) {
-          openrouterModelStatusEl.textContent = 'Error: ' + (data.error || 'Failed to fetch models');
-          openrouterModelStatusEl.style.color = '#dc2626';
-          return;
-        }
-
-        var models = data.models || [];
-
-        // Popular model IDs for prioritization
-        var popularIds = [
-          'anthropic/claude-sonnet-4',
-          'anthropic/claude-3.5-sonnet',
-          'anthropic/claude-3-opus',
-          'openai/gpt-4o',
-          'openai/o1',
-          'google/gemini-2.0-flash-exp',
-          'google/gemini-pro-1.5',
-          'meta-llama/llama-3.3-70b-instruct',
-          'deepseek/deepseek-chat'
-        ];
-
-        // Vision-capable models for image model selection
-        var visionModels = models.filter(function(m) {
-          return m.id.indexOf('vision') !== -1 ||
-                 m.id.indexOf('gpt-4o') !== -1 ||
-                 m.id.indexOf('claude-3') !== -1 ||
-                 m.id.indexOf('claude-sonnet-4') !== -1 ||
-                 m.id.indexOf('gemini') !== -1;
-        });
-
-        // Populate primary model select
-        populateModelSelect(openrouterModelEl, models, popularIds, true, '-- Select primary model --');
-
-        // Populate fallbacks multi-select
-        populateModelSelect(openrouterFallbacksEl, models, popularIds, false);
-
-        // Populate image model select (prefer vision-capable models)
-        populateModelSelect(openrouterImageModelEl, visionModels.length > 0 ? visionModels : models, popularIds, true, '-- None (use primary) --');
-
-        // Populate image fallbacks multi-select
-        populateModelSelect(openrouterImageFallbacksEl, visionModels.length > 0 ? visionModels : models, popularIds, false);
-
-        openrouterModelStatusEl.textContent = 'Loaded ' + models.length + ' models.';
-        openrouterModelStatusEl.style.color = '#16a34a';
-      })
-      .catch(function (err) {
-        fetchModelsBtn.disabled = false;
-        openrouterModelStatusEl.textContent = 'Error: ' + String(err);
-        openrouterModelStatusEl.style.color = '#dc2626';
-      });
+  // Add provider button handler
+  if (addProviderBtn) {
+    addProviderBtn.onclick = function () {
+      var newItem = createProviderItem();
+      providersContainer.appendChild(newItem);
+      setupProviderItem(newItem);
+    };
   }
 
-  // Bind fetch models button
-  if (fetchModelsBtn) {
-    fetchModelsBtn.onclick = fetchOpenRouterModels;
-  }
+  // Initialize existing provider items
+  setupAllProviderItems();
 
-  // Get selected values from a multi-select element
-  function getMultiSelectValues(selectEl) {
-    var values = [];
-    if (!selectEl) return values;
-    for (var i = 0; i < selectEl.options.length; i++) {
-      if (selectEl.options[i].selected && selectEl.options[i].value) {
-        values.push(selectEl.options[i].value);
+  // Collect all provider configurations
+  function collectProviders() {
+    var providers = {};
+    var items = providersContainer.querySelectorAll('.provider-item');
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var type = item.querySelector('.provider-type').value;
+      var apiKey = item.querySelector('.provider-apikey').value.trim();
+      var baseUrl = item.querySelector('.provider-baseurl').value.trim();
+
+      if (!type || !apiKey) continue;
+
+      var providerName = type;
+      if (type === 'custom' && baseUrl) {
+        // Generate a unique name for custom providers
+        providerName = 'custom_' + i;
       }
+
+      var config = {
+        apiKey: apiKey
+      };
+
+      // Set baseUrl
+      if (type === 'custom') {
+        if (baseUrl) config.baseUrl = baseUrl;
+      } else {
+        config.baseUrl = providerUrls[type];
+      }
+
+      // Set API type
+      if (providerApiTypes[type]) {
+        config.api = providerApiTypes[type];
+      }
+
+      providers[providerName] = config;
     }
-    return values;
+
+    return providers;
+  }
+
+  // Parse comma-separated model list
+  function parseModelList(str) {
+    if (!str) return [];
+    return str.split(',')
+      .map(function(s) { return s.trim(); })
+      .filter(function(s) { return s.length > 0; });
   }
 
   function httpJson(url, opts) {
@@ -223,26 +190,38 @@
       var ver = j.clawdbotVersion ? (' | ' + j.clawdbotVersion) : '';
       setStatus((j.configured ? 'Configured - open /clawdbot' : 'Not configured - run setup below') + ver);
       renderAuth(j.authGroups || []);
-      // If channels are unsupported, surface it for debugging.
       if (j.channelsAddHelp && j.channelsAddHelp.indexOf('telegram') === -1) {
         logEl.textContent += '\nNote: this clawdbot build does not list telegram in `channels add --help`. Telegram auto-add will be skipped.\n';
       }
-
     }).catch(function (e) {
       setStatus('Error: ' + String(e));
     });
   }
 
   document.getElementById('run').onclick = function () {
+    // Collect providers
+    var providers = collectProviders();
+
+    // Collect model configuration
+    var primaryModelEl = document.getElementById('primaryModel');
+    var fallbackModelsEl = document.getElementById('fallbackModels');
+    var imageModelEl = document.getElementById('imageModel');
+    var imageFallbackModelsEl = document.getElementById('imageFallbackModels');
+    var thinkingDefaultEl = document.getElementById('thinkingDefault');
+    var userTimezoneEl = document.getElementById('userTimezone');
+    var workspacePathEl = document.getElementById('workspacePath');
+
     var payload = {
       flow: document.getElementById('flow').value,
       authChoice: authChoiceEl.value,
       authSecret: document.getElementById('authSecret').value,
+      // Provider configurations
+      providers: providers,
       // Model configuration
-      openrouterModel: openrouterModelEl ? openrouterModelEl.value : '',
-      openrouterFallbacks: getMultiSelectValues(openrouterFallbacksEl),
-      openrouterImageModel: openrouterImageModelEl ? openrouterImageModelEl.value : '',
-      openrouterImageFallbacks: getMultiSelectValues(openrouterImageFallbacksEl),
+      primaryModel: primaryModelEl ? primaryModelEl.value.trim() : '',
+      fallbackModels: parseModelList(fallbackModelsEl ? fallbackModelsEl.value : ''),
+      imageModel: imageModelEl ? imageModelEl.value.trim() : '',
+      imageFallbackModels: parseModelList(imageFallbackModelsEl ? imageFallbackModelsEl.value : ''),
       // Agent defaults
       thinkingDefault: thinkingDefaultEl ? thinkingDefaultEl.value : '',
       userTimezone: userTimezoneEl ? userTimezoneEl.value : '',
