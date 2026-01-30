@@ -556,31 +556,87 @@ function runCmd(cmd, args, opts = {}) {
   });
 }
 
+// Provider default URLs and API types for models.providers configuration
+const providerDefaults = {
+  'anthropic': {
+    baseUrl: 'https://api.anthropic.com',
+    api: 'anthropic-messages'
+  },
+  'openai': {
+    baseUrl: 'https://api.openai.com/v1',
+    api: 'openai-completions'
+  },
+  'openrouter': {
+    baseUrl: 'https://openrouter.ai/api/v1',
+    api: 'openai-completions'
+  },
+  'google': {
+    baseUrl: 'https://generativelanguage.googleapis.com',
+    api: 'google-generative-ai'
+  },
+  'moonshot': {
+    baseUrl: 'https://api.moonshot.ai/v1',
+    api: 'openai-completions'
+  }
+};
+
+// Map auth choices to provider names for models.providers
+const authChoiceToProvider = {
+  'openrouter-api-key': 'openrouter',
+  'openai-api-key': 'openai',
+  'apiKey': 'anthropic',
+  'gemini-api-key': 'google',
+  'moonshot-api-key': 'moonshot',
+  'kimi-code-api-key': 'moonshot'
+};
+
 // Helper function to set providers configuration
 // Based on openclaw schema: models.providers
 async function setProvidersConfig(payload) {
   let extra = "";
 
-  const providers = payload.providers;
-  if (!providers || typeof providers !== 'object' || Object.keys(providers).length === 0) {
-    return extra;
-  }
-
   // Build models.providers config object
   // Schema: Record<string, { baseUrl: string, apiKey?: string, api?: string, models: [] }>
   const providersConfig = {};
 
-  for (const [name, config] of Object.entries(providers)) {
-    if (!config.apiKey) continue;
+  // First, add the primary auth provider if it's API-based
+  const authChoice = payload.authChoice;
+  const authSecret = (payload.authSecret || "").trim();
+  if (authChoice && authSecret && authChoiceToProvider[authChoice]) {
+    const providerName = authChoiceToProvider[authChoice];
+    const defaults = providerDefaults[providerName];
+    if (defaults) {
+      providersConfig[providerName] = {
+        baseUrl: defaults.baseUrl,
+        apiKey: authSecret,
+        api: defaults.api,
+        models: []
+      };
+      extra += `[auth-provider] auto-added ${providerName} from primary auth\n`;
+    }
+  }
 
-    providersConfig[name] = {
-      baseUrl: config.baseUrl || '',
-      apiKey: config.apiKey,
-      models: [] // Empty models array - clawdbot will use default models for the provider
-    };
+  // Then add any additional providers from the providers section
+  const providers = payload.providers;
+  if (providers && typeof providers === 'object') {
+    for (const [name, config] of Object.entries(providers)) {
+      if (!config.apiKey) continue;
 
-    if (config.api) {
-      providersConfig[name].api = config.api;
+      // Don't overwrite if already set from auth
+      if (providersConfig[name]) {
+        extra += `[providers] ${name} already configured from auth, skipping duplicate\n`;
+        continue;
+      }
+
+      providersConfig[name] = {
+        baseUrl: config.baseUrl || '',
+        apiKey: config.apiKey,
+        models: []
+      };
+
+      if (config.api) {
+        providersConfig[name].api = config.api;
+      }
     }
   }
 
@@ -680,14 +736,13 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
 
       // Check if any configuration was provided
       const hasProviders = payload.providers && Object.keys(payload.providers).length > 0;
+      const hasAuthProvider = payload.authChoice && payload.authSecret && authChoiceToProvider[payload.authChoice];
       const hasModel = payload.primaryModel || payload.imageModel;
       const hasDefaults = payload.thinkingDefault || payload.userTimezone || payload.workspacePath;
 
-      if (hasProviders || hasModel || hasDefaults) {
-        // Set providers config
-        if (hasProviders) {
-          extra += await setProvidersConfig(payload);
-        }
+      if (hasProviders || hasAuthProvider || hasModel || hasDefaults) {
+        // Set providers config (includes auto-adding auth provider)
+        extra += await setProvidersConfig(payload);
 
         // Set agent defaults
         extra += await setAgentDefaults(payload);
