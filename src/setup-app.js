@@ -25,6 +25,52 @@
     'google': 'google-generative-ai'
   };
 
+  // Static model lists for common providers
+  var staticModels = {
+    'anthropic': [
+      { id: 'anthropic/claude-sonnet-4-20250514', name: 'Claude Sonnet 4 (Latest)' },
+      { id: 'anthropic/claude-opus-4-20250514', name: 'Claude Opus 4' },
+      { id: 'anthropic/claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+      { id: 'anthropic/claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
+      { id: 'anthropic/claude-3-opus-20240229', name: 'Claude 3 Opus' }
+    ],
+    'openai': [
+      { id: 'openai/gpt-4o', name: 'GPT-4o' },
+      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
+      { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo' },
+      { id: 'openai/o1', name: 'o1' },
+      { id: 'openai/o1-mini', name: 'o1 Mini' },
+      { id: 'openai/o3-mini', name: 'o3 Mini' }
+    ],
+    'google': [
+      { id: 'google/gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+      { id: 'google/gemini-2.0-flash-thinking', name: 'Gemini 2.0 Flash Thinking' },
+      { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+      { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+    ],
+    'moonshot': [
+      { id: 'moonshotai/kimi-k2', name: 'Kimi K2' },
+      { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5' },
+      { id: 'moonshot-v1-8k', name: 'Moonshot v1 8K' },
+      { id: 'moonshot-v1-32k', name: 'Moonshot v1 32K' },
+      { id: 'moonshot-v1-128k', name: 'Moonshot v1 128K' }
+    ]
+  };
+
+  // Map auth choices to provider names
+  var authChoiceToProvider = {
+    'openrouter-api-key': 'openrouter',
+    'openai-api-key': 'openai',
+    'apiKey': 'anthropic',
+    'gemini-api-key': 'google',
+    'moonshot-api-key': 'moonshot',
+    'kimi-code-api-key': 'moonshot'
+  };
+
+  // Cached models list
+  var loadedModels = [];
+  var currentProvider = null;
+
   function setStatus(s) {
     statusEl.textContent = s;
   }
@@ -53,9 +99,183 @@
         opt2.textContent = o.label + (o.hint ? ' - ' + o.hint : '');
         authChoiceEl.appendChild(opt2);
       }
+      // Clear models when auth changes
+      loadedModels = [];
+      currentProvider = null;
+      populateModelDropdowns([]);
     };
 
     authGroupEl.onchange();
+  }
+
+  // Populate all model dropdowns with the given models
+  function populateModelDropdowns(models) {
+    var primaryEl = document.getElementById('primaryModel');
+    var imageEl = document.getElementById('imageModel');
+
+    // Update primary model dropdown
+    if (primaryEl) {
+      var currentVal = primaryEl.value;
+      primaryEl.innerHTML = '<option value="">-- Select a model --</option>';
+      for (var i = 0; i < models.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = models[i].id;
+        opt.textContent = models[i].name || models[i].id;
+        primaryEl.appendChild(opt);
+      }
+      if (currentVal) primaryEl.value = currentVal;
+    }
+
+    // Update image model dropdown
+    if (imageEl) {
+      var currentImgVal = imageEl.value;
+      imageEl.innerHTML = '<option value="">-- Select image model (optional) --</option>';
+      for (var j = 0; j < models.length; j++) {
+        var opt2 = document.createElement('option');
+        opt2.value = models[j].id;
+        opt2.textContent = models[j].name || models[j].id;
+        imageEl.appendChild(opt2);
+      }
+      if (currentImgVal) imageEl.value = currentImgVal;
+    }
+
+    // Update all fallback dropdowns
+    updateFallbackDropdowns('fallbackModelsContainer', 'fallback-model-select', models);
+    updateFallbackDropdowns('imageFallbackModelsContainer', 'image-fallback-model-select', models);
+  }
+
+  // Update fallback model dropdowns in a container
+  function updateFallbackDropdowns(containerId, selectClass, models) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+
+    var selects = container.querySelectorAll('.' + selectClass);
+    for (var i = 0; i < selects.length; i++) {
+      var sel = selects[i];
+      var currentVal = sel.value;
+      var placeholder = sel.querySelector('option[value=""]');
+      var placeholderText = placeholder ? placeholder.textContent : '-- Select fallback --';
+
+      sel.innerHTML = '<option value="">' + placeholderText + '</option>';
+      for (var j = 0; j < models.length; j++) {
+        var opt = document.createElement('option');
+        opt.value = models[j].id;
+        opt.textContent = models[j].name || models[j].id;
+        sel.appendChild(opt);
+      }
+      if (currentVal) sel.value = currentVal;
+    }
+  }
+
+  // Create a new fallback model row
+  function createFallbackRow(selectClass, placeholder) {
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.25rem;';
+
+    var sel = document.createElement('select');
+    sel.className = selectClass;
+    sel.style.cssText = 'flex: 1;';
+    sel.innerHTML = '<option value="">' + placeholder + '</option>';
+
+    // Populate with loaded models
+    for (var i = 0; i < loadedModels.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = loadedModels[i].id;
+      opt.textContent = loadedModels[i].name || loadedModels[i].id;
+      sel.appendChild(opt);
+    }
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = 'Remove';
+    removeBtn.style.cssText = 'background: #dc2626; padding: 0.3rem 0.6rem; font-size: 0.85em;';
+    removeBtn.onclick = function() {
+      wrapper.remove();
+    };
+
+    wrapper.appendChild(sel);
+    wrapper.appendChild(removeBtn);
+    return wrapper;
+  }
+
+  // Setup fallback add buttons
+  var addFallbackBtn = document.getElementById('addFallbackBtn');
+  if (addFallbackBtn) {
+    addFallbackBtn.onclick = function() {
+      var container = document.getElementById('fallbackModelsContainer');
+      if (container) {
+        container.appendChild(createFallbackRow('fallback-model-select', '-- Select fallback model --'));
+      }
+    };
+  }
+
+  var addImageFallbackBtn = document.getElementById('addImageFallbackBtn');
+  if (addImageFallbackBtn) {
+    addImageFallbackBtn.onclick = function() {
+      var container = document.getElementById('imageFallbackModelsContainer');
+      if (container) {
+        container.appendChild(createFallbackRow('image-fallback-model-select', '-- Select fallback (optional) --'));
+      }
+    };
+  }
+
+  // Load models button handler
+  var loadModelsBtn = document.getElementById('loadModelsBtn');
+  var modelsLoadStatus = document.getElementById('modelsLoadStatus');
+
+  if (loadModelsBtn) {
+    loadModelsBtn.onclick = function() {
+      var authChoice = authChoiceEl.value;
+      var apiKey = document.getElementById('authSecret').value.trim();
+      var provider = authChoiceToProvider[authChoice];
+
+      if (!provider) {
+        if (modelsLoadStatus) modelsLoadStatus.textContent = 'Select an auth provider first';
+        return;
+      }
+
+      if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loading models...';
+
+      if (provider === 'openrouter') {
+        // Fetch from OpenRouter API
+        if (!apiKey) {
+          if (modelsLoadStatus) modelsLoadStatus.textContent = 'Enter OpenRouter API key first';
+          return;
+        }
+
+        fetch('/setup/api/openrouter/models', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ apiKey: apiKey })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.ok && data.models) {
+            loadedModels = data.models;
+            currentProvider = provider;
+            populateModelDropdowns(loadedModels);
+            if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loaded ' + loadedModels.length + ' models from OpenRouter';
+          } else {
+            if (modelsLoadStatus) modelsLoadStatus.textContent = 'Error: ' + (data.error || 'Failed to load models');
+          }
+        })
+        .catch(function(e) {
+          if (modelsLoadStatus) modelsLoadStatus.textContent = 'Error: ' + String(e);
+        });
+      } else {
+        // Use static model list
+        var models = staticModels[provider] || [];
+        if (models.length === 0) {
+          if (modelsLoadStatus) modelsLoadStatus.textContent = 'No preset models for ' + provider + '. You may need to enter model ID manually.';
+          return;
+        }
+        loadedModels = models;
+        currentProvider = provider;
+        populateModelDropdowns(loadedModels);
+        if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loaded ' + models.length + ' models for ' + provider;
+      }
+    };
   }
 
   // Create a new provider item HTML
@@ -163,12 +383,25 @@
     return providers;
   }
 
-  // Parse comma-separated model list
+  // Parse comma-separated model list (kept for backwards compatibility)
   function parseModelList(str) {
     if (!str) return [];
     return str.split(',')
       .map(function(s) { return s.trim(); })
       .filter(function(s) { return s.length > 0; });
+  }
+
+  // Collect selected values from fallback model dropdowns
+  function collectFallbackModels(containerId, selectClass) {
+    var container = document.getElementById(containerId);
+    if (!container) return [];
+    var selects = container.querySelectorAll('.' + selectClass);
+    var models = [];
+    for (var i = 0; i < selects.length; i++) {
+      var val = selects[i].value.trim();
+      if (val) models.push(val);
+    }
+    return models;
   }
 
   function httpJson(url, opts) {
@@ -204,12 +437,14 @@
 
     // Collect model configuration
     var primaryModelEl = document.getElementById('primaryModel');
-    var fallbackModelsEl = document.getElementById('fallbackModels');
     var imageModelEl = document.getElementById('imageModel');
-    var imageFallbackModelsEl = document.getElementById('imageFallbackModels');
     var thinkingDefaultEl = document.getElementById('thinkingDefault');
     var userTimezoneEl = document.getElementById('userTimezone');
     var workspacePathEl = document.getElementById('workspacePath');
+
+    // Collect fallback models from dropdowns
+    var fallbackModels = collectFallbackModels('fallbackModelsContainer', 'fallback-model-select');
+    var imageFallbackModels = collectFallbackModels('imageFallbackModelsContainer', 'image-fallback-model-select');
 
     var payload = {
       flow: document.getElementById('flow').value,
@@ -219,9 +454,9 @@
       providers: providers,
       // Model configuration
       primaryModel: primaryModelEl ? primaryModelEl.value.trim() : '',
-      fallbackModels: parseModelList(fallbackModelsEl ? fallbackModelsEl.value : ''),
+      fallbackModels: fallbackModels,
       imageModel: imageModelEl ? imageModelEl.value.trim() : '',
-      imageFallbackModels: parseModelList(imageFallbackModelsEl ? imageFallbackModelsEl.value : ''),
+      imageFallbackModels: imageFallbackModels,
       // Agent defaults
       thinkingDefault: thinkingDefaultEl ? thinkingDefaultEl.value : '',
       userTimezone: userTimezoneEl ? userTimezoneEl.value : '',

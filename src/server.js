@@ -292,15 +292,23 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
 
     <div style="padding: 1rem; background: #f0f9ff; border-radius: 8px; margin-bottom: 1rem;">
       <strong>Model Configuration</strong>
-      <p class="muted" style="margin: 0.25rem 0; font-size: 0.85em;">
-        Use format: provider/model-name (e.g., anthropic/claude-sonnet-4, openai/gpt-4o, openrouter/meta-llama/llama-3.3-70b-instruct)
-      </p>
+      <div style="display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0;">
+        <button type="button" id="loadModelsBtn" style="background: #2563eb; padding: 0.5rem 1rem;">Load Models</button>
+        <span id="modelsLoadStatus" class="muted" style="font-size: 0.85em;"></span>
+      </div>
 
       <label>Primary Model</label>
-      <input id="primaryModel" type="text" placeholder="e.g., anthropic/claude-sonnet-4" />
+      <select id="primaryModel" style="width: 100%;">
+        <option value="">-- Select a model --</option>
+      </select>
 
-      <label>Fallback Models (comma-separated)</label>
-      <input id="fallbackModels" type="text" placeholder="e.g., openai/gpt-4o, openrouter/deepseek/deepseek-chat" />
+      <label>Fallback Models</label>
+      <div id="fallbackModelsContainer">
+        <select class="fallback-model-select" style="width: calc(100% - 80px); margin-bottom: 0.25rem;">
+          <option value="">-- Select fallback model --</option>
+        </select>
+      </div>
+      <button type="button" id="addFallbackBtn" style="background: #16a34a; padding: 0.4rem 0.8rem; margin-top: 0.25rem; font-size: 0.85em;">+ Add Fallback</button>
       <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Backup models if primary is unavailable</div>
     </div>
 
@@ -308,10 +316,17 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
       <strong>Image/Vision Model (optional)</strong>
 
       <label>Image Model</label>
-      <input id="imageModel" type="text" placeholder="e.g., openai/gpt-4o, anthropic/claude-sonnet-4" />
+      <select id="imageModel" style="width: 100%;">
+        <option value="">-- Select image model (optional) --</option>
+      </select>
 
-      <label>Image Model Fallbacks (comma-separated)</label>
-      <input id="imageFallbackModels" type="text" placeholder="e.g., google/gemini-pro-vision" />
+      <label>Image Model Fallbacks</label>
+      <div id="imageFallbackModelsContainer">
+        <select class="image-fallback-model-select" style="width: calc(100% - 80px); margin-bottom: 0.25rem;">
+          <option value="">-- Select fallback (optional) --</option>
+        </select>
+      </div>
+      <button type="button" id="addImageFallbackBtn" style="background: #16a34a; padding: 0.4rem 0.8rem; margin-top: 0.25rem; font-size: 0.85em;">+ Add Fallback</button>
       <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Leave empty to use primary model for vision tasks</div>
     </div>
 
