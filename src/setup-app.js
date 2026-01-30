@@ -219,69 +219,98 @@
     };
   }
 
-  // Load models button handler
+  // Load models button handler - loads from ALL configured providers
   var loadModelsBtn = document.getElementById('loadModelsBtn');
   var modelsLoadStatus = document.getElementById('modelsLoadStatus');
 
   if (loadModelsBtn) {
     loadModelsBtn.onclick = function() {
       var authChoice = authChoiceEl.value;
-      var apiKey = document.getElementById('authSecret').value.trim();
-      var provider = authChoiceToProvider[authChoice];
+      var primaryApiKey = document.getElementById('authSecret').value.trim();
+      var primaryProvider = authChoiceToProvider[authChoice];
 
-      if (!provider) {
-        if (modelsLoadStatus) modelsLoadStatus.textContent = 'Select an auth provider first';
+      // Collect all configured providers (primary + additional from section 2)
+      var configuredProviders = {};
+
+      // Add primary auth provider
+      if (primaryProvider && primaryApiKey) {
+        configuredProviders[primaryProvider] = primaryApiKey;
+      }
+
+      // Add providers from section 2 (API Providers)
+      var providerItems = providersContainer.querySelectorAll('.provider-item');
+      for (var i = 0; i < providerItems.length; i++) {
+        var item = providerItems[i];
+        var type = item.querySelector('.provider-type').value;
+        var apiKey = item.querySelector('.provider-apikey').value.trim();
+        if (type && apiKey && type !== 'custom') {
+          configuredProviders[type] = apiKey;
+        }
+      }
+
+      if (Object.keys(configuredProviders).length === 0) {
+        if (modelsLoadStatus) modelsLoadStatus.textContent = 'Configure at least one provider with API key first';
         return;
       }
 
-      if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loading models...';
+      if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loading models from all providers...';
 
-      if (provider === 'openrouter') {
-        // Fetch from OpenRouter API
-        if (!apiKey) {
-          if (modelsLoadStatus) modelsLoadStatus.textContent = 'Enter OpenRouter API key first';
-          return;
-        }
+      // Load models from all configured providers
+      var allModels = [];
+      var pendingLoads = [];
+      var providerNames = Object.keys(configuredProviders);
 
-        fetch('/setup/api/openrouter/models', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ apiKey: apiKey })
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data.ok && data.models) {
-            // Add [OpenRouter] prefix to model names for clarity
-            loadedModels = data.models.map(function(m) {
-              return {
-                id: m.id,
-                name: '[OpenRouter] ' + (m.name || m.id),
-                provider: 'openrouter'
-              };
-            });
-            currentProvider = provider;
-            populateModelDropdowns(loadedModels);
-            if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loaded ' + loadedModels.length + ' models from OpenRouter';
-          } else {
-            if (modelsLoadStatus) modelsLoadStatus.textContent = 'Error: ' + (data.error || 'Failed to load models');
-          }
-        })
-        .catch(function(e) {
-          if (modelsLoadStatus) modelsLoadStatus.textContent = 'Error: ' + String(e);
-        });
-      } else {
-        // Use static model list
-        var models = staticModels[provider] || [];
-        if (models.length === 0) {
-          if (modelsLoadStatus) modelsLoadStatus.textContent = 'No preset models for ' + provider + '. You may need to enter model ID manually.';
-          return;
+      for (var j = 0; j < providerNames.length; j++) {
+        var provName = providerNames[j];
+        var provKey = configuredProviders[provName];
+
+        if (provName === 'openrouter') {
+          // Fetch from OpenRouter API
+          pendingLoads.push(
+            fetch('/setup/api/openrouter/models', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ apiKey: provKey })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+              if (data.ok && data.models) {
+                return data.models.map(function(m) {
+                  return {
+                    id: m.id,
+                    name: '[OpenRouter] ' + (m.name || m.id),
+                    provider: 'openrouter'
+                  };
+                });
+              }
+              return [];
+            })
+            .catch(function() { return []; })
+          );
+        } else {
+          // Use static model list
+          var staticList = staticModels[provName] || [];
+          pendingLoads.push(Promise.resolve(staticList));
         }
-        loadedModels = models;
-        currentProvider = provider;
-        populateModelDropdowns(loadedModels);
-        if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loaded ' + models.length + ' models for ' + provider;
       }
+
+      // Wait for all loads to complete
+      Promise.all(pendingLoads).then(function(results) {
+        for (var k = 0; k < results.length; k++) {
+          allModels = allModels.concat(results[k]);
+        }
+        loadedModels = allModels;
+        currentProvider = primaryProvider;
+        populateModelDropdowns(loadedModels);
+
+        var providerList = providerNames.join(', ');
+        if (modelsLoadStatus) {
+          modelsLoadStatus.textContent = 'Loaded ' + allModels.length + ' models from: ' + providerList;
+        }
+      }).catch(function(e) {
+        if (modelsLoadStatus) modelsLoadStatus.textContent = 'Error loading models: ' + String(e);
+      });
     };
   }
 
