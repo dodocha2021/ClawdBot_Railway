@@ -605,6 +605,20 @@ const authChoiceToProvider = {
   'kimi-code-api-key': 'moonshot'
 };
 
+// Determine which provider should handle a model based on its ID prefix
+function getProviderForModel(modelId, defaultProvider) {
+  if (!modelId) return null;
+
+  // Check for explicit provider prefixes
+  if (modelId.startsWith('anthropic/')) return 'anthropic';
+  if (modelId.startsWith('openai/')) return 'openai';
+  if (modelId.startsWith('google/')) return 'google';
+  if (modelId.startsWith('openrouter/')) return 'openrouter';
+
+  // For other models (like moonshotai/kimi-k2.5), use the default provider
+  return defaultProvider;
+}
+
 // Helper function to set providers configuration
 // Based on openclaw schema: models.providers
 async function setProvidersConfig(payload) {
@@ -614,20 +628,22 @@ async function setProvidersConfig(payload) {
   // Schema: Record<string, { baseUrl: string, apiKey?: string, api?: string, models: [] }>
   const providersConfig = {};
 
-  // First, add the primary auth provider if it's API-based
+  // Determine primary provider from auth choice
   const authChoice = payload.authChoice;
   const authSecret = (payload.authSecret || "").trim();
-  if (authChoice && authSecret && authChoiceToProvider[authChoice]) {
-    const providerName = authChoiceToProvider[authChoice];
-    const defaults = providerDefaults[providerName];
+  const primaryProvider = authChoiceToProvider[authChoice] || null;
+
+  // First, add the primary auth provider if it's API-based
+  if (authChoice && authSecret && primaryProvider) {
+    const defaults = providerDefaults[primaryProvider];
     if (defaults) {
-      providersConfig[providerName] = {
+      providersConfig[primaryProvider] = {
         baseUrl: defaults.baseUrl,
         apiKey: authSecret,
         api: defaults.api,
         models: []
       };
-      extra += `[auth-provider] auto-added ${providerName} from primary auth\n`;
+      extra += `[auth-provider] auto-added ${primaryProvider} from primary auth\n`;
     }
   }
 
@@ -643,16 +659,41 @@ async function setProvidersConfig(payload) {
         continue;
       }
 
+      const defaults = providerDefaults[name] || {};
       providersConfig[name] = {
-        baseUrl: config.baseUrl || '',
+        baseUrl: config.baseUrl || defaults.baseUrl || '',
         apiKey: config.apiKey,
+        api: config.api || defaults.api,
         models: []
       };
-
-      if (config.api) {
-        providersConfig[name].api = config.api;
-      }
     }
+  }
+
+  // Collect all selected models and assign them to providers
+  const allModels = [];
+  if (payload.primaryModel) allModels.push(payload.primaryModel);
+  if (Array.isArray(payload.fallbackModels)) {
+    allModels.push(...payload.fallbackModels.filter(m => m));
+  }
+  if (payload.imageModel) allModels.push(payload.imageModel);
+  if (Array.isArray(payload.imageFallbackModels)) {
+    allModels.push(...payload.imageFallbackModels.filter(m => m));
+  }
+
+  // Add models to their respective providers
+  const modelProviderMap = {}; // model -> provider
+  for (const modelId of allModels) {
+    const provider = getProviderForModel(modelId, primaryProvider);
+    if (provider && providersConfig[provider]) {
+      if (!providersConfig[provider].models.includes(modelId)) {
+        providersConfig[provider].models.push(modelId);
+      }
+      modelProviderMap[modelId] = provider;
+    }
+  }
+
+  if (Object.keys(modelProviderMap).length > 0) {
+    extra += `[model-routing] ${Object.entries(modelProviderMap).map(([m, p]) => `${m} -> ${p}`).join(', ')}\n`;
   }
 
   if (Object.keys(providersConfig).length > 0) {
