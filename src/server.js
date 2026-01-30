@@ -605,27 +605,68 @@ const authChoiceToProvider = {
   'kimi-code-api-key': 'moonshot'
 };
 
-// Determine which provider should handle a model based on its ID prefix
-function getProviderForModel(modelId, defaultProvider) {
+// Known model prefixes for direct API providers (without provider/ prefix)
+const anthropicModels = ['claude-sonnet-4', 'claude-opus-4', 'claude-3-5-sonnet', 'claude-3-5-haiku', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'];
+const openaiModels = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5', 'o1', 'o3'];
+const googleModels = ['gemini-2', 'gemini-1.5', 'gemini-pro'];
+const moonshotModels = ['kimi-', 'moonshot-v1'];
+
+// Determine which provider should handle a model based on its ID
+function getProviderForModel(modelId, defaultProvider, configuredProviders) {
   if (!modelId) return null;
 
-  // Check for explicit provider prefixes
-  if (modelId.startsWith('anthropic/')) return 'anthropic';
-  if (modelId.startsWith('openai/')) return 'openai';
-  if (modelId.startsWith('google/')) return 'google';
-  if (modelId.startsWith('openrouter/')) return 'openrouter';
+  // Check for OpenRouter-style paths (provider/model format used by OpenRouter)
+  // These models should be routed to openrouter if configured
+  if (modelId.includes('/')) {
+    // If openrouter is configured and this looks like an OpenRouter model path
+    if (configuredProviders && configuredProviders['openrouter']) {
+      return 'openrouter';
+    }
+    // Otherwise try to extract provider from prefix
+    const prefix = modelId.split('/')[0];
+    if (configuredProviders && configuredProviders[prefix]) {
+      return prefix;
+    }
+  }
 
-  // For other models (like moonshotai/kimi-k2.5), use the default provider
+  // Check for direct API model IDs (no provider prefix)
+  // Match against known model patterns
+  if (configuredProviders) {
+    if (configuredProviders['anthropic']) {
+      for (const pattern of anthropicModels) {
+        if (modelId.startsWith(pattern)) return 'anthropic';
+      }
+    }
+    if (configuredProviders['openai']) {
+      for (const pattern of openaiModels) {
+        if (modelId.startsWith(pattern)) return 'openai';
+      }
+    }
+    if (configuredProviders['google']) {
+      for (const pattern of googleModels) {
+        if (modelId.startsWith(pattern)) return 'google';
+      }
+    }
+    if (configuredProviders['moonshot']) {
+      for (const pattern of moonshotModels) {
+        if (modelId.startsWith(pattern)) return 'moonshot';
+      }
+    }
+  }
+
+  // Default to the primary provider
   return defaultProvider;
 }
 
 // Helper function to set providers configuration
 // Based on openclaw schema: models.providers
+// IMPORTANT: When using OpenRouter, each model's provider prefix (e.g., "moonshotai" in "moonshotai/kimi-k2.5")
+// must be configured separately, all pointing to OpenRouter's URL
 async function setProvidersConfig(payload) {
   let extra = "";
 
   // Build models.providers config object
-  // Schema: Record<string, { baseUrl: string, apiKey?: string, api?: string, models: [] }>
+  // Schema: Record<string, { baseUrl: string, apiKey?: string, api?: string, models: ModelDefinitionConfig[] }>
   const providersConfig = {};
 
   // Determine primary provider from auth choice
@@ -669,7 +710,7 @@ async function setProvidersConfig(payload) {
     }
   }
 
-  // Collect all selected models and assign them to providers
+  // Collect all selected models
   const allModels = [];
   if (payload.primaryModel) allModels.push(payload.primaryModel);
   if (Array.isArray(payload.fallbackModels)) {
@@ -680,15 +721,52 @@ async function setProvidersConfig(payload) {
     allModels.push(...payload.imageFallbackModels.filter(m => m));
   }
 
-  // Add models to their respective providers
+  // For each model with provider/model format, ensure the provider is configured
+  // This is critical for OpenRouter: models like "moonshotai/kimi-k2.5" need "moonshotai" provider
+  // configured with OpenRouter's baseUrl and API key
   const modelProviderMap = {}; // model -> provider
   for (const modelId of allModels) {
-    const provider = getProviderForModel(modelId, primaryProvider);
-    if (provider && providersConfig[provider]) {
-      if (!providersConfig[provider].models.includes(modelId)) {
-        providersConfig[provider].models.push(modelId);
+    if (!modelId) continue;
+
+    if (modelId.includes('/')) {
+      // Model has provider prefix like "moonshotai/kimi-k2.5"
+      const [providerPrefix, modelName] = modelId.split('/');
+
+      if (!providersConfig[providerPrefix]) {
+        // Need to add this provider - determine which API to use
+        // If we have openrouter configured, use its settings
+        if (providersConfig['openrouter']) {
+          providersConfig[providerPrefix] = {
+            baseUrl: providersConfig['openrouter'].baseUrl,
+            apiKey: providersConfig['openrouter'].apiKey,
+            api: 'openai-completions',  // OpenRouter uses OpenAI-compatible API
+            models: []
+          };
+          extra += `[model-routing] auto-added provider "${providerPrefix}" via openrouter for model "${modelId}"\n`;
+        } else {
+          // Check if there's a matching configured provider
+          const matchingProvider = Object.keys(providersConfig).find(p =>
+            providerPrefix.toLowerCase().includes(p.toLowerCase()) ||
+            p.toLowerCase().includes(providerPrefix.toLowerCase())
+          );
+          if (matchingProvider) {
+            providersConfig[providerPrefix] = {
+              baseUrl: providersConfig[matchingProvider].baseUrl,
+              apiKey: providersConfig[matchingProvider].apiKey,
+              api: providersConfig[matchingProvider].api,
+              models: []
+            };
+            extra += `[model-routing] auto-added provider "${providerPrefix}" via "${matchingProvider}" for model "${modelId}"\n`;
+          }
+        }
       }
-      modelProviderMap[modelId] = provider;
+      modelProviderMap[modelId] = providerPrefix;
+    } else {
+      // Model without prefix - use primary provider or pattern matching
+      const provider = getProviderForModel(modelId, primaryProvider, providersConfig);
+      if (provider) {
+        modelProviderMap[modelId] = provider;
+      }
     }
   }
 
