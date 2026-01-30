@@ -8,9 +8,15 @@
   var logEl = document.getElementById('log');
   var openrouterModelSection = document.getElementById('openrouterModelSection');
   var openrouterModelEl = document.getElementById('openrouterModel');
+  var openrouterFallbacksEl = document.getElementById('openrouterFallbacks');
+  var openrouterImageModelEl = document.getElementById('openrouterImageModel');
+  var openrouterImageFallbacksEl = document.getElementById('openrouterImageFallbacks');
   var openrouterModelStatusEl = document.getElementById('openrouterModelStatus');
   var fetchModelsBtn = document.getElementById('fetchModelsBtn');
   var authSecretEl = document.getElementById('authSecret');
+  var thinkingDefaultEl = document.getElementById('thinkingDefault');
+  var userTimezoneEl = document.getElementById('userTimezone');
+  var workspacePathEl = document.getElementById('workspacePath');
 
   function setStatus(s) {
     statusEl.textContent = s;
@@ -51,6 +57,62 @@
     authGroupEl.onchange();
   }
 
+  // Populate a select element with model options
+  function populateModelSelect(selectEl, models, popularIds, includeEmpty, emptyLabel) {
+    selectEl.innerHTML = '';
+
+    if (includeEmpty) {
+      var emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.textContent = emptyLabel || '-- None --';
+      selectEl.appendChild(emptyOpt);
+    }
+
+    var popularModels = [];
+    var otherModels = [];
+    for (var i = 0; i < models.length; i++) {
+      var m = models[i];
+      if (popularIds.indexOf(m.id) !== -1) {
+        popularModels.push(m);
+      } else {
+        otherModels.push(m);
+      }
+    }
+
+    // Sort popular models by the order in popularIds
+    popularModels.sort(function (a, b) {
+      return popularIds.indexOf(a.id) - popularIds.indexOf(b.id);
+    });
+
+    // Add optgroup for popular models
+    if (popularModels.length > 0) {
+      var popularGroup = document.createElement('optgroup');
+      popularGroup.label = '⭐ Popular Models';
+      for (var j = 0; j < popularModels.length; j++) {
+        var pm = popularModels[j];
+        var opt = document.createElement('option');
+        opt.value = pm.id;
+        opt.textContent = pm.name + ' (' + pm.id + ')';
+        popularGroup.appendChild(opt);
+      }
+      selectEl.appendChild(popularGroup);
+    }
+
+    // Add optgroup for all other models
+    if (otherModels.length > 0) {
+      var otherGroup = document.createElement('optgroup');
+      otherGroup.label = 'All Models';
+      for (var k = 0; k < otherModels.length; k++) {
+        var om = otherModels[k];
+        var opt2 = document.createElement('option');
+        opt2.value = om.id;
+        opt2.textContent = om.name + ' (' + om.id + ')';
+        otherGroup.appendChild(opt2);
+      }
+      selectEl.appendChild(otherGroup);
+    }
+  }
+
   // Fetch OpenRouter models
   function fetchOpenRouterModels() {
     var apiKey = authSecretEl.value.trim();
@@ -80,15 +142,8 @@
         }
 
         var models = data.models || [];
-        openrouterModelEl.innerHTML = '';
 
-        // Add default option
-        var defaultOpt = document.createElement('option');
-        defaultOpt.value = '';
-        defaultOpt.textContent = '-- Select a model (' + models.length + ' available) --';
-        openrouterModelEl.appendChild(defaultOpt);
-
-        // Add popular models at the top
+        // Popular model IDs for prioritization
         var popularIds = [
           'anthropic/claude-sonnet-4',
           'anthropic/claude-3.5-sonnet',
@@ -101,51 +156,28 @@
           'deepseek/deepseek-chat'
         ];
 
-        var popularModels = [];
-        var otherModels = [];
-        for (var i = 0; i < models.length; i++) {
-          var m = models[i];
-          if (popularIds.indexOf(m.id) !== -1) {
-            popularModels.push(m);
-          } else {
-            otherModels.push(m);
-          }
-        }
-
-        // Sort popular models by the order in popularIds
-        popularModels.sort(function (a, b) {
-          return popularIds.indexOf(a.id) - popularIds.indexOf(b.id);
+        // Vision-capable models for image model selection
+        var visionModels = models.filter(function(m) {
+          return m.id.indexOf('vision') !== -1 ||
+                 m.id.indexOf('gpt-4o') !== -1 ||
+                 m.id.indexOf('claude-3') !== -1 ||
+                 m.id.indexOf('claude-sonnet-4') !== -1 ||
+                 m.id.indexOf('gemini') !== -1;
         });
 
-        // Add optgroup for popular models
-        if (popularModels.length > 0) {
-          var popularGroup = document.createElement('optgroup');
-          popularGroup.label = '⭐ Popular Models';
-          for (var j = 0; j < popularModels.length; j++) {
-            var pm = popularModels[j];
-            var opt = document.createElement('option');
-            opt.value = pm.id;
-            opt.textContent = pm.name + ' (' + pm.id + ')';
-            popularGroup.appendChild(opt);
-          }
-          openrouterModelEl.appendChild(popularGroup);
-        }
+        // Populate primary model select
+        populateModelSelect(openrouterModelEl, models, popularIds, true, '-- Select primary model --');
 
-        // Add optgroup for all other models
-        if (otherModels.length > 0) {
-          var otherGroup = document.createElement('optgroup');
-          otherGroup.label = 'All Models';
-          for (var k = 0; k < otherModels.length; k++) {
-            var om = otherModels[k];
-            var opt2 = document.createElement('option');
-            opt2.value = om.id;
-            opt2.textContent = om.name + ' (' + om.id + ')';
-            otherGroup.appendChild(opt2);
-          }
-          openrouterModelEl.appendChild(otherGroup);
-        }
+        // Populate fallbacks multi-select
+        populateModelSelect(openrouterFallbacksEl, models, popularIds, false);
 
-        openrouterModelStatusEl.textContent = 'Loaded ' + models.length + ' models. Select one above.';
+        // Populate image model select (prefer vision-capable models)
+        populateModelSelect(openrouterImageModelEl, visionModels.length > 0 ? visionModels : models, popularIds, true, '-- None (use primary) --');
+
+        // Populate image fallbacks multi-select
+        populateModelSelect(openrouterImageFallbacksEl, visionModels.length > 0 ? visionModels : models, popularIds, false);
+
+        openrouterModelStatusEl.textContent = 'Loaded ' + models.length + ' models.';
         openrouterModelStatusEl.style.color = '#16a34a';
       })
       .catch(function (err) {
@@ -158,6 +190,18 @@
   // Bind fetch models button
   if (fetchModelsBtn) {
     fetchModelsBtn.onclick = fetchOpenRouterModels;
+  }
+
+  // Get selected values from a multi-select element
+  function getMultiSelectValues(selectEl) {
+    var values = [];
+    if (!selectEl) return values;
+    for (var i = 0; i < selectEl.options.length; i++) {
+      if (selectEl.options[i].selected && selectEl.options[i].value) {
+        values.push(selectEl.options[i].value);
+      }
+    }
+    return values;
   }
 
   function httpJson(url, opts) {
@@ -194,7 +238,16 @@
       flow: document.getElementById('flow').value,
       authChoice: authChoiceEl.value,
       authSecret: document.getElementById('authSecret').value,
+      // Model configuration
       openrouterModel: openrouterModelEl ? openrouterModelEl.value : '',
+      openrouterFallbacks: getMultiSelectValues(openrouterFallbacksEl),
+      openrouterImageModel: openrouterImageModelEl ? openrouterImageModelEl.value : '',
+      openrouterImageFallbacks: getMultiSelectValues(openrouterImageFallbacksEl),
+      // Agent defaults
+      thinkingDefault: thinkingDefaultEl ? thinkingDefaultEl.value : '',
+      userTimezone: userTimezoneEl ? userTimezoneEl.value : '',
+      workspacePath: workspacePathEl ? workspacePathEl.value : '',
+      // Channel tokens
       telegramToken: document.getElementById('telegramToken').value,
       discordToken: document.getElementById('discordToken').value,
       slackBotToken: document.getElementById('slackBotToken').value,

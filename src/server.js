@@ -245,17 +245,68 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
     <input id="authSecret" type="password" placeholder="Paste API key / token if applicable" />
 
     <div id="openrouterModelSection" style="display:none; margin-top: 1rem; padding: 1rem; background: #f9f9f9; border-radius: 8px;">
-      <label style="margin-top: 0;">OpenRouter Model</label>
-      <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
-        <select id="openrouterModel" style="flex: 1;">
-          <option value="">-- Enter API key and click "Fetch Models" --</option>
-        </select>
+      <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem;">
         <button type="button" id="fetchModelsBtn" style="white-space: nowrap; background: #2563eb;">Fetch Models</button>
+        <span id="openrouterModelStatus" class="muted" style="font-size: 0.9em;"></span>
       </div>
-      <div id="openrouterModelStatus" class="muted" style="margin-top: 0.5rem; font-size: 0.9em;"></div>
-      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">
-        Enter your OpenRouter API key above, then click "Fetch Models" to load available models.
-      </div>
+
+      <label style="margin-top: 0;">Primary Model</label>
+      <select id="openrouterModel">
+        <option value="">-- Click "Fetch Models" first --</option>
+      </select>
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Main model for text generation</div>
+
+      <label>Fallback Models (optional)</label>
+      <select id="openrouterFallbacks" multiple style="height: 100px;">
+        <option value="">-- Click "Fetch Models" first --</option>
+      </select>
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Hold Ctrl/Cmd to select multiple backup models</div>
+
+      <label>Image Model (optional)</label>
+      <select id="openrouterImageModel">
+        <option value="">-- None (use primary) --</option>
+      </select>
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Model for image/vision tasks (leave empty to use primary)</div>
+
+      <label>Image Model Fallbacks (optional)</label>
+      <select id="openrouterImageFallbacks" multiple style="height: 80px;">
+        <option value="">-- Click "Fetch Models" first --</option>
+      </select>
+
+      <label>Thinking Level</label>
+      <select id="thinkingDefault">
+        <option value="">-- Default --</option>
+        <option value="off">Off - No reasoning</option>
+        <option value="minimal">Minimal</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="xhigh">Extra High - Maximum reasoning</option>
+      </select>
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Controls AI reasoning depth (higher = more thorough but slower)</div>
+
+      <label>User Timezone (optional)</label>
+      <select id="userTimezone">
+        <option value="">-- Auto-detect --</option>
+        <option value="UTC">UTC</option>
+        <option value="America/New_York">America/New_York (EST/EDT)</option>
+        <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+        <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+        <option value="Europe/London">Europe/London (GMT/BST)</option>
+        <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+        <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+        <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+        <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+        <option value="Asia/Hong_Kong">Asia/Hong_Kong (HKT)</option>
+        <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+        <option value="Asia/Seoul">Asia/Seoul (KST)</option>
+        <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+      </select>
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">IANA timezone for timestamps</div>
+
+      <label>Workspace Path (optional)</label>
+      <input id="workspacePath" type="text" placeholder="/data/workspace" />
+      <div class="muted" style="margin-top: 0.25rem; font-size: 0.85em;">Default working directory for the agent</div>
     </div>
 
     <label>Wizard flow</label>
@@ -471,25 +522,94 @@ function runCmd(cmd, args, opts = {}) {
   });
 }
 
+// Helper function to set agent defaults configuration
+// Based on openclaw schema: agents.defaults.model, imageModel, thinkingDefault, userTimezone, workspace
+async function setAgentDefaults(payload) {
+  let extra = "";
+
+  // Set model configuration (AgentModelListConfig: { primary?: string, fallbacks?: string[] })
+  if (payload.authChoice === "openrouter-api-key") {
+    const primaryModel = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
+    const fallbacks = Array.isArray(payload.openrouterFallbacks)
+      ? payload.openrouterFallbacks.filter(f => f && f.trim())
+      : [];
+
+    const modelConfig = { primary: primaryModel };
+    if (fallbacks.length > 0) {
+      modelConfig.fallbacks = fallbacks;
+    }
+
+    const modelSet = await runCmd(
+      CLAWDBOT_NODE,
+      clawArgs(["config", "set", "--json", "agents.defaults.model", JSON.stringify(modelConfig)]),
+    );
+    extra += `[model] primary: ${primaryModel}${fallbacks.length > 0 ? `, fallbacks: ${fallbacks.join(', ')}` : ''} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}\n`;
+
+    // Set imageModel configuration if specified
+    const imageModel = payload.openrouterImageModel?.trim();
+    const imageFallbacks = Array.isArray(payload.openrouterImageFallbacks)
+      ? payload.openrouterImageFallbacks.filter(f => f && f.trim())
+      : [];
+
+    if (imageModel || imageFallbacks.length > 0) {
+      const imageModelConfig = {};
+      if (imageModel) imageModelConfig.primary = imageModel;
+      if (imageFallbacks.length > 0) imageModelConfig.fallbacks = imageFallbacks;
+
+      const imageSet = await runCmd(
+        CLAWDBOT_NODE,
+        clawArgs(["config", "set", "--json", "agents.defaults.imageModel", JSON.stringify(imageModelConfig)]),
+      );
+      extra += `[imageModel] ${imageModel ? `primary: ${imageModel}` : ''}${imageFallbacks.length > 0 ? ` fallbacks: ${imageFallbacks.join(', ')}` : ''} (exit=${imageSet.code})\n${imageSet.output || "(no output)"}\n`;
+    }
+  }
+
+  // Set thinkingDefault (valid values: "off", "minimal", "low", "medium", "high", "xhigh")
+  const thinkingDefault = payload.thinkingDefault?.trim();
+  if (thinkingDefault && ["off", "minimal", "low", "medium", "high", "xhigh"].includes(thinkingDefault)) {
+    const thinkingSet = await runCmd(
+      CLAWDBOT_NODE,
+      clawArgs(["config", "set", "agents.defaults.thinkingDefault", thinkingDefault]),
+    );
+    extra += `[thinkingDefault] ${thinkingDefault} (exit=${thinkingSet.code})\n${thinkingSet.output || "(no output)"}\n`;
+  }
+
+  // Set userTimezone (IANA timezone string)
+  const userTimezone = payload.userTimezone?.trim();
+  if (userTimezone) {
+    const tzSet = await runCmd(
+      CLAWDBOT_NODE,
+      clawArgs(["config", "set", "agents.defaults.userTimezone", userTimezone]),
+    );
+    extra += `[userTimezone] ${userTimezone} (exit=${tzSet.code})\n${tzSet.output || "(no output)"}\n`;
+  }
+
+  // Set workspace path
+  const workspacePath = payload.workspacePath?.trim();
+  if (workspacePath) {
+    const wsSet = await runCmd(
+      CLAWDBOT_NODE,
+      clawArgs(["config", "set", "agents.defaults.workspace", workspacePath]),
+    );
+    extra += `[workspace] ${workspacePath} (exit=${wsSet.code})\n${wsSet.output || "(no output)"}\n`;
+  }
+
+  return extra;
+}
+
 app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
   try {
     const payload = req.body || {};
 
     if (isConfigured()) {
-      // Already configured - but still allow updating OpenRouter model
+      // Already configured - but still allow updating agent defaults
       let extra = "";
-      if (payload.authChoice === "openrouter-api-key") {
-        const model = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
-        // AgentModelListConfig format: { primary: string, fallbacks?: string[] }
-        const modelConfig = { primary: model };
-        const modelSet = await runCmd(
-          CLAWDBOT_NODE,
-          clawArgs(["config", "set", "--json", "agents.defaults.model", JSON.stringify(modelConfig)]),
-        );
-        extra += `[openrouter model] updated to: ${model} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}\n`;
-        extra += "\nRestarting gateway to apply model change...\n";
 
-        // Kill existing gateway so it restarts with new model
+      if (payload.authChoice === "openrouter-api-key" || payload.thinkingDefault || payload.userTimezone || payload.workspacePath) {
+        extra = await setAgentDefaults(payload);
+        extra += "\nRestarting gateway to apply changes...\n";
+
+        // Kill existing gateway so it restarts with new settings
         try {
           await runCmd("pkill", ["-f", "clawdbot.*gateway"]);
         } catch (e) { /* ignore */ }
@@ -518,17 +638,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.bind", "loopback"]));
       await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]));
 
-      // Set OpenRouter model - use default if not specified
-      if (payload.authChoice === "openrouter-api-key") {
-        // Use provided model or default to anthropic/claude-sonnet-4
-        const model = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
-        // AgentModelListConfig format: { primary: string, fallbacks?: string[] }
-        const modelConfig = { primary: model };
-        const modelSet = await runCmd(
-          CLAWDBOT_NODE,
-          clawArgs(["config", "set", "--json", "agents.defaults.model", JSON.stringify(modelConfig)]),
-        );
-        extra += `\n[openrouter model] set to: ${model} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}`;
+      // Set agent defaults (model, imageModel, thinkingDefault, userTimezone, workspace)
+      const agentDefaultsExtra = await setAgentDefaults(payload);
+      if (agentDefaultsExtra) {
+        extra += "\n" + agentDefaultsExtra;
       }
 
       const channelsHelp = await runCmd(CLAWDBOT_NODE, clawArgs(["channels", "add", "--help"]));
