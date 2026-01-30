@@ -25,32 +25,33 @@
     'google': 'google-generative-ai'
   };
 
-  // Static model lists for common providers (with provider labels)
+  // Static model lists for DIRECT API providers (model IDs without provider prefix)
+  // These are used when calling the provider's API directly, not through OpenRouter
   var staticModels = {
     'anthropic': [
-      { id: 'anthropic/claude-sonnet-4-20250514', name: '[Anthropic] Claude Sonnet 4 (Latest)', provider: 'anthropic' },
-      { id: 'anthropic/claude-opus-4-20250514', name: '[Anthropic] Claude Opus 4', provider: 'anthropic' },
-      { id: 'anthropic/claude-3-5-sonnet-20241022', name: '[Anthropic] Claude 3.5 Sonnet', provider: 'anthropic' },
-      { id: 'anthropic/claude-3-5-haiku-20241022', name: '[Anthropic] Claude 3.5 Haiku', provider: 'anthropic' },
-      { id: 'anthropic/claude-3-opus-20240229', name: '[Anthropic] Claude 3 Opus', provider: 'anthropic' }
+      { id: 'claude-sonnet-4-20250514', name: '[Anthropic] Claude Sonnet 4 (Latest)', provider: 'anthropic' },
+      { id: 'claude-opus-4-20250514', name: '[Anthropic] Claude Opus 4', provider: 'anthropic' },
+      { id: 'claude-3-5-sonnet-20241022', name: '[Anthropic] Claude 3.5 Sonnet', provider: 'anthropic' },
+      { id: 'claude-3-5-haiku-20241022', name: '[Anthropic] Claude 3.5 Haiku', provider: 'anthropic' },
+      { id: 'claude-3-opus-20240229', name: '[Anthropic] Claude 3 Opus', provider: 'anthropic' }
     ],
     'openai': [
-      { id: 'openai/gpt-4o', name: '[OpenAI] GPT-4o', provider: 'openai' },
-      { id: 'openai/gpt-4o-mini', name: '[OpenAI] GPT-4o Mini', provider: 'openai' },
-      { id: 'openai/gpt-4-turbo', name: '[OpenAI] GPT-4 Turbo', provider: 'openai' },
-      { id: 'openai/o1', name: '[OpenAI] o1', provider: 'openai' },
-      { id: 'openai/o1-mini', name: '[OpenAI] o1 Mini', provider: 'openai' },
-      { id: 'openai/o3-mini', name: '[OpenAI] o3 Mini', provider: 'openai' }
+      { id: 'gpt-4o', name: '[OpenAI] GPT-4o', provider: 'openai' },
+      { id: 'gpt-4o-mini', name: '[OpenAI] GPT-4o Mini', provider: 'openai' },
+      { id: 'gpt-4-turbo', name: '[OpenAI] GPT-4 Turbo', provider: 'openai' },
+      { id: 'o1', name: '[OpenAI] o1', provider: 'openai' },
+      { id: 'o1-mini', name: '[OpenAI] o1 Mini', provider: 'openai' },
+      { id: 'o3-mini', name: '[OpenAI] o3 Mini', provider: 'openai' }
     ],
     'google': [
-      { id: 'google/gemini-2.0-flash', name: '[Google] Gemini 2.0 Flash', provider: 'google' },
-      { id: 'google/gemini-2.0-flash-thinking', name: '[Google] Gemini 2.0 Flash Thinking', provider: 'google' },
-      { id: 'google/gemini-1.5-pro', name: '[Google] Gemini 1.5 Pro', provider: 'google' },
-      { id: 'google/gemini-1.5-flash', name: '[Google] Gemini 1.5 Flash', provider: 'google' }
+      { id: 'gemini-2.0-flash', name: '[Google] Gemini 2.0 Flash', provider: 'google' },
+      { id: 'gemini-2.0-flash-thinking', name: '[Google] Gemini 2.0 Flash Thinking', provider: 'google' },
+      { id: 'gemini-1.5-pro', name: '[Google] Gemini 1.5 Pro', provider: 'google' },
+      { id: 'gemini-1.5-flash', name: '[Google] Gemini 1.5 Flash', provider: 'google' }
     ],
     'moonshot': [
-      { id: 'moonshotai/kimi-k2', name: '[Moonshot] Kimi K2', provider: 'moonshot' },
-      { id: 'moonshotai/kimi-k2.5', name: '[Moonshot] Kimi K2.5', provider: 'moonshot' },
+      { id: 'kimi-k2', name: '[Moonshot] Kimi K2', provider: 'moonshot' },
+      { id: 'kimi-k2.5', name: '[Moonshot] Kimi K2.5', provider: 'moonshot' },
       { id: 'moonshot-v1-8k', name: '[Moonshot] Moonshot v1 8K', provider: 'moonshot' },
       { id: 'moonshot-v1-32k', name: '[Moonshot] Moonshot v1 32K', provider: 'moonshot' },
       { id: 'moonshot-v1-128k', name: '[Moonshot] Moonshot v1 128K', provider: 'moonshot' }
