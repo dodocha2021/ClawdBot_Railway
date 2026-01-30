@@ -25,35 +25,35 @@
     'google': 'google-generative-ai'
   };
 
-  // Static model lists for common providers
+  // Static model lists for common providers (with provider labels)
   var staticModels = {
     'anthropic': [
-      { id: 'anthropic/claude-sonnet-4-20250514', name: 'Claude Sonnet 4 (Latest)' },
-      { id: 'anthropic/claude-opus-4-20250514', name: 'Claude Opus 4' },
-      { id: 'anthropic/claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'anthropic/claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
-      { id: 'anthropic/claude-3-opus-20240229', name: 'Claude 3 Opus' }
+      { id: 'anthropic/claude-sonnet-4-20250514', name: '[Anthropic] Claude Sonnet 4 (Latest)', provider: 'anthropic' },
+      { id: 'anthropic/claude-opus-4-20250514', name: '[Anthropic] Claude Opus 4', provider: 'anthropic' },
+      { id: 'anthropic/claude-3-5-sonnet-20241022', name: '[Anthropic] Claude 3.5 Sonnet', provider: 'anthropic' },
+      { id: 'anthropic/claude-3-5-haiku-20241022', name: '[Anthropic] Claude 3.5 Haiku', provider: 'anthropic' },
+      { id: 'anthropic/claude-3-opus-20240229', name: '[Anthropic] Claude 3 Opus', provider: 'anthropic' }
     ],
     'openai': [
-      { id: 'openai/gpt-4o', name: 'GPT-4o' },
-      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
-      { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo' },
-      { id: 'openai/o1', name: 'o1' },
-      { id: 'openai/o1-mini', name: 'o1 Mini' },
-      { id: 'openai/o3-mini', name: 'o3 Mini' }
+      { id: 'openai/gpt-4o', name: '[OpenAI] GPT-4o', provider: 'openai' },
+      { id: 'openai/gpt-4o-mini', name: '[OpenAI] GPT-4o Mini', provider: 'openai' },
+      { id: 'openai/gpt-4-turbo', name: '[OpenAI] GPT-4 Turbo', provider: 'openai' },
+      { id: 'openai/o1', name: '[OpenAI] o1', provider: 'openai' },
+      { id: 'openai/o1-mini', name: '[OpenAI] o1 Mini', provider: 'openai' },
+      { id: 'openai/o3-mini', name: '[OpenAI] o3 Mini', provider: 'openai' }
     ],
     'google': [
-      { id: 'google/gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-      { id: 'google/gemini-2.0-flash-thinking', name: 'Gemini 2.0 Flash Thinking' },
-      { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-      { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+      { id: 'google/gemini-2.0-flash', name: '[Google] Gemini 2.0 Flash', provider: 'google' },
+      { id: 'google/gemini-2.0-flash-thinking', name: '[Google] Gemini 2.0 Flash Thinking', provider: 'google' },
+      { id: 'google/gemini-1.5-pro', name: '[Google] Gemini 1.5 Pro', provider: 'google' },
+      { id: 'google/gemini-1.5-flash', name: '[Google] Gemini 1.5 Flash', provider: 'google' }
     ],
     'moonshot': [
-      { id: 'moonshotai/kimi-k2', name: 'Kimi K2' },
-      { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5' },
-      { id: 'moonshot-v1-8k', name: 'Moonshot v1 8K' },
-      { id: 'moonshot-v1-32k', name: 'Moonshot v1 32K' },
-      { id: 'moonshot-v1-128k', name: 'Moonshot v1 128K' }
+      { id: 'moonshotai/kimi-k2', name: '[Moonshot] Kimi K2', provider: 'moonshot' },
+      { id: 'moonshotai/kimi-k2.5', name: '[Moonshot] Kimi K2.5', provider: 'moonshot' },
+      { id: 'moonshot-v1-8k', name: '[Moonshot] Moonshot v1 8K', provider: 'moonshot' },
+      { id: 'moonshot-v1-32k', name: '[Moonshot] Moonshot v1 32K', provider: 'moonshot' },
+      { id: 'moonshot-v1-128k', name: '[Moonshot] Moonshot v1 128K', provider: 'moonshot' }
     ]
   };
 
@@ -252,7 +252,14 @@
         .then(function(res) { return res.json(); })
         .then(function(data) {
           if (data.ok && data.models) {
-            loadedModels = data.models;
+            // Add [OpenRouter] prefix to model names for clarity
+            loadedModels = data.models.map(function(m) {
+              return {
+                id: m.id,
+                name: '[OpenRouter] ' + (m.name || m.id),
+                provider: 'openrouter'
+              };
+            });
             currentProvider = provider;
             populateModelDropdowns(loadedModels);
             if (modelsLoadStatus) modelsLoadStatus.textContent = 'Loaded ' + loadedModels.length + ' models from OpenRouter';
