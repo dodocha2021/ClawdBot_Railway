@@ -480,9 +480,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       let extra = "";
       if (payload.authChoice === "openrouter-api-key") {
         const model = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
+        const modelObj = { id: model };
         const modelSet = await runCmd(
           CLAWDBOT_NODE,
-          clawArgs(["config", "set", "agents.defaults.model", model]),
+          clawArgs(["config", "set", "--json", "agents.defaults.model", JSON.stringify(modelObj)]),
         );
         extra += `[openrouter model] updated to: ${model} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}\n`;
         extra += "\nRestarting gateway to apply model change...\n";
@@ -520,9 +521,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       if (payload.authChoice === "openrouter-api-key") {
         // Use provided model or default to anthropic/claude-sonnet-4
         const model = payload.openrouterModel?.trim() || "anthropic/claude-sonnet-4";
+        const modelObj = { id: model };
         const modelSet = await runCmd(
           CLAWDBOT_NODE,
-          clawArgs(["config", "set", "agents.defaults.model", model]),
+          clawArgs(["config", "set", "--json", "agents.defaults.model", JSON.stringify(modelObj)]),
         );
         extra += `\n[openrouter model] set to: ${model} (exit=${modelSet.code})\n${modelSet.output || "(no output)"}`;
       }
